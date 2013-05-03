@@ -7,6 +7,7 @@
 //
 
 #import "STHTTPRequest.h"
+#import "NSData+Base64.h"
 
 #define DEBUG 0
 
@@ -30,11 +31,32 @@ static NSMutableDictionary *sharedCredentialsStorage = nil;
 @property (nonatomic, retain) NSString *POSTFileParameter;
 @end
 
-@interface NSData (Base64)
-- (NSString *)base64Encoding; // private API
-@end
-
 @implementation STHTTPRequest
+
+@synthesize connection = _connection;
+@synthesize responseData = _responseData;
+@synthesize responseStringEncodingName = _responseStringEncodingName;
+@synthesize responseHeaders = _responseHeaders;
+@synthesize url = _url;
+@synthesize error = _error;
+@synthesize POSTFilePath = _POSTFilePath;
+@synthesize POSTFileData = _POSTFileData;
+@synthesize POSTFileMimeType = _POSTFileMimeType;
+@synthesize POSTFileName = _POSTFileName;
+@synthesize POSTFileParameter = _POSTFileParameter;
+@synthesize uploadProgressBlock = _uploadProgressBlock;
+@synthesize completionBlock = _completionBlock;
+@synthesize errorBlock = _errorBlock;
+@synthesize postDataEncoding = _postDataEncoding;
+@synthesize POSTDictionary = _POSTDictionary;
+@synthesize POSTData = _POSTData;
+@synthesize requestHeaders = _requestHeaders;
+@synthesize responseStatus = _responseStatus;
+@synthesize responseString = _responseString;
+@synthesize forcedResponseEncoding = _forcedResponseEncoding;
+@synthesize encodePOSTDictionary = _encodePOSTDictionary;
+@synthesize timeoutSeconds = _timeoutSeconds;
+@synthesize addCredentialsToURL = _addCredentialsToURL;
 
 #pragma mark Initializers
 
@@ -246,8 +268,8 @@ static NSMutableDictionary *sharedCredentialsStorage = nil;
     
     // Set properties
     request.timeoutInterval = self.timeoutSeconds;
-    //    if (self.requestMethod)
-    //        request.HTTPMethod = self.requestMethod;
+//    if (self.requestMethod)
+//        request.HTTPMethod = self.requestMethod;
     
     // escape POST dictionary keys and values if needed
     if(_encodePOSTDictionary) {
@@ -360,7 +382,7 @@ static NSMutableDictionary *sharedCredentialsStorage = nil;
     if(credentialForHost) {
         NSString *authString = [NSString stringWithFormat:@"%@:%@", credentialForHost.user, credentialForHost.password];
         NSData *authData = [authString dataUsingEncoding:NSASCIIStringEncoding];
-        NSString *authValue = [NSString stringWithFormat:@"Basic %@", [authData base64Encoding]];
+        NSString *authValue = [NSString stringWithFormat:@"Basic %@", [authData base64EncodedString]];
         [request addValue:authValue forHTTPHeaderField:@"Authorization"];
     }
     

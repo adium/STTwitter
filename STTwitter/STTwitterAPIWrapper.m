@@ -7,11 +7,9 @@
 //
 
 #import "STTwitterAPIWrapper.h"
-#import "STTwitterOAuthOSX.h"
 #import "STTwitterOAuth.h"
 #import "NSString+STTwitter.h"
 #import "STTwitterAppOnly.h"
-#import <Accounts/Accounts.h>
 
 @interface STTwitterAPIWrapper ()
 id removeNull(id rootObject);
@@ -20,30 +18,9 @@ id removeNull(id rootObject);
 
 @implementation STTwitterAPIWrapper
 
-#if TARGET_OS_IPHONE
-#else
-
-- (id)init {
-    self = [super init];
-    
-    [[NSNotificationCenter defaultCenter] addObserverForName:ACAccountStoreDidChangeNotification object:nil queue:nil usingBlock:^(NSNotification *note) {
-        // OS X account must be considered invalid
-        
-        if([self.oauth isKindOfClass:[STTwitterOAuthOSX class]]) {
-            self.oauth = nil;//[[[STTwitterOAuthOSX alloc] init] autorelease];
-        }
-    }];
-    
-    return self;
-}
-
-+ (STTwitterAPIWrapper *)twitterAPIWithOAuthOSX {
-    STTwitterAPIWrapper *twitter = [[STTwitterAPIWrapper alloc] init];
-    twitter.oauth = [[[STTwitterOAuthOSX alloc] init] autorelease];
-    return [twitter autorelease];
-}
-
-#endif
+@synthesize oauth = _oauth;
+@synthesize consumerName = _consumerName;
+@synthesize userName = _userName;
 
 + (STTwitterAPIWrapper *)twitterAPIWithOAuthConsumerName:(NSString *)consumerName
                                              consumerKey:(NSString *)consumerKey
@@ -52,7 +29,7 @@ id removeNull(id rootObject);
                                                 password:(NSString *)password {
     
     STTwitterAPIWrapper *twitter = [[STTwitterAPIWrapper alloc] init];
-    
+
     twitter.oauth = [STTwitterOAuth twitterServiceWithConsumerName:consumerName
                                                        consumerKey:consumerKey
                                                     consumerSecret:consumerSecret
@@ -68,7 +45,7 @@ id removeNull(id rootObject);
                                         oauthTokenSecret:(NSString *)oauthTokenSecret {
     
     STTwitterAPIWrapper *twitter = [[STTwitterAPIWrapper alloc] init];
-    
+
     twitter.oauth = [STTwitterOAuth twitterServiceWithConsumerName:consumerName
                                                        consumerKey:consumerKey
                                                     consumerSecret:consumerSecret
@@ -80,7 +57,7 @@ id removeNull(id rootObject);
 + (STTwitterAPIWrapper *)twitterAPIWithOAuthConsumerName:(NSString *)consumerName
                                              consumerKey:(NSString *)consumerKey
                                           consumerSecret:(NSString *)consumerSecret {
-    
+
     return [self twitterAPIWithOAuthConsumerName:consumerName
                                      consumerKey:consumerKey
                                   consumerSecret:consumerSecret
@@ -96,7 +73,7 @@ id removeNull(id rootObject);
     STTwitterAppOnly *appOnly = [[[STTwitterAppOnly alloc] init] autorelease];
     appOnly.consumerKey = consumerKey;
     appOnly.consumerSecret = consumerSecret;
-    
+
     twitter.oauth = appOnly;
     return twitter;
 }
@@ -158,15 +135,6 @@ id removeNull(id rootObject);
 }
 
 - (NSString *)userName {
-    
-#if TARGET_OS_IPHONE
-#else
-    if([_oauth isKindOfClass:[STTwitterOAuthOSX class]]) {
-        STTwitterOAuthOSX *oAuthOSX = (STTwitterOAuthOSX *)_oauth;
-        return oAuthOSX.username;
-    }
-#endif
-    
     return _userName;
 }
 
@@ -191,7 +159,7 @@ id removeNull(id rootObject);
 	[self getUserInformationFor:screenName
 				   successBlock:^(NSDictionary *response) {
 					   NSString *imageURL = [response objectForKey:@"profile_image_url"];
-                       
+				   
 					   NSURLRequest *imageRequest = [NSURLRequest requestWithURL:[NSURL URLWithString:imageURL]];
 					   
 					   NSData *imageData = [NSURLConnection sendSynchronousRequest:imageRequest returningResponse:nil error:nil];
@@ -214,13 +182,13 @@ id removeNull(id rootObject);
 			  count:(NSUInteger)optionalCount
 	   successBlock:(void(^)(NSArray *statuses))successBlock
 		 errorBlock:(void(^)(NSError *error))errorBlock {
-    
+
     NSMutableDictionary *mparams = [params mutableCopy];
 	if (!mparams)
 		mparams = [NSMutableDictionary new];
 	
-    if (optionalSinceID) mparams[@"since_id"] = optionalSinceID;
-	if (optionalCount != NSNotFound) mparams[@"count"] = [@(optionalCount) stringValue];
+    if (optionalSinceID) [mparams setObject:optionalSinceID forKey:@"since_id"];
+	if (optionalCount != NSNotFound) [mparams setObject:[@(optionalCount) stringValue] forKey:@"count"];
 	
 	__block NSMutableArray *statuses = [NSMutableArray new];
 	__block void (^requestHandler)(id response) = nil;
@@ -236,7 +204,7 @@ id removeNull(id rootObject);
 			if (lastID) {
 				NSUInteger maxID = [[NSDecimalNumber decimalNumberWithString:lastID] unsignedIntegerValue];
 				if (maxID != NSNotFound)
-					mparams[@"max_id"] = [@(--maxID) stringValue];
+					[mparams setObject:[@(--maxID) stringValue] forKey:@"max_id"];
 			}
 			
 			[_oauth getResource:timeline parameters:mparams
@@ -280,7 +248,7 @@ id removeNull(id rootObject);
 - (void)getUserTimelineWithScreenName:(NSString *)screenName
                          successBlock:(void(^)(NSArray *statuses))successBlock
                            errorBlock:(void(^)(NSError *error))errorBlock {
-    
+
     [self getUserTimelineWithScreenName:screenName count:NSNotFound successBlock:successBlock errorBlock:errorBlock];
 }
 
@@ -308,7 +276,7 @@ id removeNull(id rootObject);
     
 	//Twitter returns an unauthenticated error if parameters is nil.
     [_oauth postResource:resource parameters:@{ @"id" : statusID } successBlock:^(id response) {
-        successBlock(response);
+        successBlock(removeNull(response));
     } errorBlock:^(NSError *error) {
         errorBlock(error);
     }];
@@ -331,20 +299,20 @@ id removeNull(id rootObject);
     NSMutableDictionary *md = [NSMutableDictionary dictionaryWithObject:status forKey:@"status"];
     
     if(optionalExistingStatusID) {
-        md[@"in_reply_to_status_id"] = optionalExistingStatusID;
+        [md setObject:optionalExistingStatusID forKey:@"in_reply_to_status_id"];
     }
     
     if(optionalPlaceID) {
-        md[@"place_id"] = optionalPlaceID;
-        md[@"display_coordinates"] = @"true";
+        [md setObject:optionalPlaceID forKey:@"place_id"];
+        [md setObject:@"true" forKey:@"display_coordinates"];
     } else if(optionalLat && optionalLon) {
-        md[@"lat"] = optionalLat;
-        md[@"lon"] = optionalLon;
-        md[@"display_coordinates"] = @"true";
+        [md setObject:optionalLat forKey:@"lat"];
+        [md setObject:optionalLon forKey:@"lon"];
+        [md setObject:@"true" forKey:@"display_coordinates"];
     }
     
     [_oauth postResource:@"statuses/update.json" parameters:md successBlock:^(id response) {
-        successBlock(response);
+        successBlock(removeNull(response));
     } errorBlock:^(NSError *error) {
         errorBlock(error);
     }];
@@ -364,20 +332,20 @@ id removeNull(id rootObject);
     NSMutableDictionary *md = [[ @{ @"status":status, @"media[]":data, @"postDataKey":@"media[]" } mutableCopy] autorelease];
     
     if(optionalExistingStatusID) {
-        md[@"in_reply_to_status_id"] = optionalExistingStatusID;
+        [md setObject:optionalExistingStatusID forKey:@"in_reply_to_status_id"];
     }
     
     if(optionalPlaceID) {
-        md[@"place_id"] = optionalPlaceID;
-        md[@"display_coordinates"] = @"true";
+        [md setObject:optionalPlaceID forKey:@"place_id"];
+        [md setObject:@"true" forKey:@"display_coordinates"];
     } else if(optionalLat && optionalLon) {
-        md[@"lat"] = optionalLat;
-        md[@"lon"] = optionalLon;
-        md[@"display_coordinates"] = @"true";
+        [md setObject:optionalLat forKey:@"lat"];
+        [md setObject:optionalLon forKey:@"lon"];
+        [md setObject:@"true" forKey:@"display_coordinates"];
     }
     
     [_oauth postResource:@"statuses/update_with_media.json" parameters:md successBlock:^(id response) {
-        successBlock(response);
+        successBlock(removeNull(response));
     } errorBlock:^(NSError *error) {
         errorBlock(error);
     }];
@@ -389,8 +357,8 @@ id removeNull(id rootObject);
     
     NSString *resource = [NSString stringWithFormat:@"statuses/retweet/%@.json", statusID];
     
-    [_oauth postResource:resource parameters:nil successBlock:^(id response) {
-        successBlock(response);
+    [_oauth postResource:resource parameters:@{@"id": statusID} successBlock:^(id response) {
+        successBlock(removeNull(response));
     } errorBlock:^(NSError *error) {
         errorBlock(error);
     }];
@@ -405,7 +373,7 @@ id removeNull(id rootObject);
     NSDictionary *d = @{@"q" : q};
     
     [_oauth getResource:@"search/tweets.json" parameters:d successBlock:^(id response) {
-        successBlock(response);
+        successBlock(removeNull(response));
     } errorBlock:^(NSError *error) {
         errorBlock(error);
     }];
@@ -423,7 +391,7 @@ id removeNull(id rootObject);
 	if (optionalCount != NSNotFound) [md setObject:[@(optionalCount) stringValue] forKey:@"count"];
     
     [_oauth getResource:@"direct_messages.json" parameters:md successBlock:^(id response) {
-        successBlock(response);
+        successBlock(removeNull(response));
     } errorBlock:^(NSError *error) {
         errorBlock(error);
     }];
@@ -435,7 +403,7 @@ id removeNull(id rootObject);
 	NSDictionary *d = @{@"id" : dmID};
     
     [_oauth postResource:@"direct_messages/destroy.json" parameters:d successBlock:^(id response) {
-        successBlock(response);
+        successBlock(removeNull(response));
     } errorBlock:^(NSError *error) {
         errorBlock(error);
     }];
@@ -449,7 +417,7 @@ id removeNull(id rootObject);
     [md setObject:screenName forKey:@"screen_name"];
     
     [_oauth postResource:@"direct_messages/new.json" parameters:md successBlock:^(id response) {
-        successBlock(response);
+        successBlock(removeNull(response));
     } errorBlock:^(NSError *error) {
         errorBlock(error);
     }];
@@ -469,11 +437,11 @@ id removeNull(id rootObject);
 		if (response) {
 			[ids addObjectsFromArray:[response objectForKey:@"users"]];
 			[cursor release]; cursor = [[response objectForKey:@"next_cursor_str"] copy];
-			d[@"cursor"] = cursor;
+			[d setObject:cursor forKey:@"cursor"];
 		}
 		
 		if ([cursor isEqualToString:@"0"]) {
-			successBlock(ids);
+			successBlock(removeNull(ids));
 			[ids release]; ids = nil;
 			[cursor release]; cursor = nil;
 		} else {
@@ -504,7 +472,7 @@ id removeNull(id rootObject);
 	NSDictionary *d = @{@"screen_name" : screenName};
     
     [_oauth postResource:@"friendships/create.json" parameters:d successBlock:^(id response) {
-        successBlock(response);
+        successBlock(removeNull(response));
     } errorBlock:^(NSError *error) {
         errorBlock(error);
     }];
@@ -516,7 +484,7 @@ id removeNull(id rootObject);
 	NSDictionary *d = @{@"screen_name" : screenName};
     
     [_oauth postResource:@"friendships/destroy.json" parameters:d successBlock:^(id response) {
-        successBlock(response);
+        successBlock(removeNull(response));
     } errorBlock:^(NSError *error) {
         errorBlock(error);
     }];
@@ -527,10 +495,10 @@ id removeNull(id rootObject);
 				   successBlock:(void(^)(NSDictionary *relationship))successBlock
 					 errorBlock:(void(^)(NSError *error))errorBlock {
 	NSMutableDictionary *d = [NSMutableDictionary dictionaryWithObject:screenName forKey:@"screen_name"];
-	d[@"device"] = notify ? @"true" : @"false";
+	[d setObject:notify ? @"true" : @"false" forKey:@"device"];
     
     [_oauth postResource:@"friendships/update.json" parameters:d successBlock:^(id response) {
-        successBlock(response);
+        successBlock(removeNull(response));
     } errorBlock:^(NSError *error) {
         errorBlock(error);
     }];
@@ -557,7 +525,7 @@ id removeNull(id rootObject);
     NSDictionary *d = @{@"skip_status" : (skipStatus ? @"true" : @"false")};
     
     [_oauth getResource:@"account/verify_credentials.json" parameters:d successBlock:^(id response) {
-        successBlock(response);
+        successBlock(removeNull(response));
     } errorBlock:^(NSError *error) {
         errorBlock(error);
     }];
@@ -567,7 +535,7 @@ id removeNull(id rootObject);
 			 successBlock:(void(^)(NSDictionary *myInfo))successBlock
 			   errorBlock:(void(^)(NSError *error))errorBlock {
 	[_oauth postResource:@"account/update_profile.json" parameters:profileData successBlock:^(id response) {
-        successBlock(response);
+        successBlock(removeNull(response));
     } errorBlock:^(NSError *error) {
         errorBlock(error);
     }];
@@ -584,7 +552,7 @@ id removeNull(id rootObject);
 	[md setObject:@"image" forKey:@"postDataKey"];
     
     [_oauth postResource:@"account/update_profile_image.json" parameters:md successBlock:^(id response) {
-        successBlock(response);
+        successBlock(removeNull(response));
     } errorBlock:^(NSError *error) {
         errorBlock(error);
     }];
@@ -596,7 +564,7 @@ id removeNull(id rootObject);
 	NSDictionary *d = @{@"screen_name" : screenName};
     
     [_oauth getResource:@"users/show.json" parameters:d successBlock:^(id response) {
-        successBlock(response);
+        successBlock(removeNull(response));
     } errorBlock:^(NSError *error) {
         errorBlock(error);
     }];
@@ -610,7 +578,7 @@ id removeNull(id rootObject);
                               errorBlock:(void(^)(NSError *error))errorBlock {
     
     [_oauth getResource:@"favorites/list.json" parameters:nil successBlock:^(id response) {
-        successBlock(response);
+        successBlock(removeNull(response));
     } errorBlock:^(NSError *error) {
         errorBlock(error);
     }];
@@ -628,7 +596,7 @@ id removeNull(id rootObject);
     NSDictionary *d = @{@"id" : statusID};
     
     [_oauth postResource:resource parameters:d successBlock:^(id response) {
-        successBlock(response);
+        successBlock(removeNull(response));
     } errorBlock:^(NSError *error) {
         errorBlock(error);
     }];
@@ -641,10 +609,10 @@ id removeNull(id rootObject);
 #pragma mark Places & Geo
 
 - (void)getGeoReverseGeocodeWithLatitude:(NSString *)latitude
-                               longitude:(NSString *)longitude
-                            successBlock:(void(^)(NSArray *places))successBlock
-                              errorBlock:(void(^)(NSError *error))errorBlock {
-    
+                            longitude:(NSString *)longitude
+                         successBlock:(void(^)(NSArray *places))successBlock
+                           errorBlock:(void(^)(NSError *error))errorBlock {
+
     NSParameterAssert(latitude);
     NSParameterAssert(longitude);
     
@@ -654,7 +622,7 @@ id removeNull(id rootObject);
         
         NSArray *places = [response valueForKeyPath:@"result.places"];
         
-        successBlock(places);
+        successBlock(removeNull(places));
     } errorBlock:^(NSError *error) {
         errorBlock(error);
     }];
@@ -673,15 +641,15 @@ id removeNull(id rootObject);
         
         NSArray *places = [response valueForKeyPath:@"result.places"];
         
-        successBlock(places);
+        successBlock(removeNull(places));
     } errorBlock:^(NSError *error) {
         errorBlock(error);
     }];
 }
 
 - (void)getGeoSearchWithIPAddress:(NSString *)ipAddress
-                     successBlock:(void(^)(NSArray *places))successBlock
-                       errorBlock:(void(^)(NSError *error))errorBlock {
+                    successBlock:(void(^)(NSArray *places))successBlock
+                      errorBlock:(void(^)(NSError *error))errorBlock {
     
     NSParameterAssert(ipAddress);
     
@@ -691,16 +659,16 @@ id removeNull(id rootObject);
         
         NSArray *places = [response valueForKeyPath:@"result.places"];
         
-        successBlock(places);
+        successBlock(removeNull(places));
     } errorBlock:^(NSError *error) {
         errorBlock(error);
     }];
 }
 
 - (void)getGeoSearchWithQuery:(NSString *)query
-                 successBlock:(void(^)(NSArray *places))successBlock
-                   errorBlock:(void(^)(NSError *error))errorBlock {
-    
+                     successBlock:(void(^)(NSArray *places))successBlock
+                       errorBlock:(void(^)(NSError *error))errorBlock {
+
     NSParameterAssert(query);
     
     NSDictionary *d = @{ @"query":query };
@@ -709,7 +677,7 @@ id removeNull(id rootObject);
         
         NSArray *places = [response valueForKeyPath:@"result.places"];
         
-        successBlock(places);
+        successBlock(removeNull(places));
     } errorBlock:^(NSError *error) {
         errorBlock(error);
     }];
@@ -723,7 +691,7 @@ id removeNull(id rootObject);
                             orUserID:(NSString *)userID
                         successBlock:(void(^)(id userProfile))successBlock
                           errorBlock:(void(^)(NSError *error))errorBlock {
-    
+
     NSParameterAssert(screenName || userID);
     
     NSDictionary *d = nil;
@@ -731,14 +699,14 @@ id removeNull(id rootObject);
     if(screenName) {
         d = @{ @"screen_name" : screenName };
     } else {
-        d = @{ @"user_id" : userID };
+        d = @{ @"user_id" : userID };    
     }
-    
+        
     [_oauth getResource:@"users/report_spam.json" parameters:d successBlock:^(id response) {
-        successBlock(response);
+        successBlock(removeNull(response));
     } errorBlock:^(NSError *error) {
         errorBlock(error);
-    }];
+    }];    
 }
 
 #pragma mark OAuth
@@ -751,7 +719,7 @@ id removeNull(id rootObject);
 	if (resources)
 		d = @{ @"resources" : [resources componentsJoinedByString:@","] };
 	[_oauth getResource:@"application/rate_limit_status.json" parameters:d successBlock:^(id response) {
-        successBlock(response);
+        successBlock(removeNull(response));
     } errorBlock:^(NSError *error) {
         errorBlock(error);
     }];
