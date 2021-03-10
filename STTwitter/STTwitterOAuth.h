@@ -7,7 +7,7 @@
 //
 
 #import <Foundation/Foundation.h>
-#import "STTwitterOAuthProtocol.h"
+#import "STTwitterProtocol.h"
 
 /*
  Based on the following documentation
@@ -20,27 +20,45 @@
  ...
  */
 
-@interface STTwitterOAuth : NSObject <STTwitterOAuthProtocol>
+extern NS_ENUM(NSUInteger, STTwitterOAuthErrorCode) {
+    STTwitterOAuthCannotPostAccessTokenRequestWithoutPIN = 0,
+    STTwitterOAuthBadCredentialsOrConsumerTokensNotXAuthEnabled
+};
 
-+ (STTwitterOAuth *)twitterServiceWithConsumerName:(NSString *)consumerName
-                                       consumerKey:(NSString *)consumerKey
-                                    consumerSecret:(NSString *)consumerSecret;
+@interface STTwitterOAuth : NSObject <STTwitterProtocol>
 
-+ (STTwitterOAuth *)twitterServiceWithConsumerName:(NSString *)consumerName
-                                       consumerKey:(NSString *)consumerKey
-                                    consumerSecret:(NSString *)consumerSecret
-                                        oauthToken:(NSString *)oauthToken
-                                  oauthTokenSecret:(NSString *)oauthTokenSecret;
+@property (nonatomic) NSTimeInterval timeoutInSeconds;
 
-+ (STTwitterOAuth *)twitterServiceWithConsumerName:(NSString *)consumerName
-                                       consumerKey:(NSString *)consumerKey
-                                    consumerSecret:(NSString *)consumerSecret
-                                          username:(NSString *)username
-                                          password:(NSString *)password;
++ (instancetype)twitterOAuthWithConsumerName:(NSString *)consumerName
+                                 consumerKey:(NSString *)consumerKey
+                              consumerSecret:(NSString *)consumerSecret;
 
++ (instancetype)twitterOAuthWithConsumerName:(NSString *)consumerName
+                                 consumerKey:(NSString *)consumerKey
+                              consumerSecret:(NSString *)consumerSecret
+                                  oauthToken:(NSString *)oauthToken
+                            oauthTokenSecret:(NSString *)oauthTokenSecret;
+
++ (instancetype)twitterOAuthWithConsumerName:(NSString *)consumerName
+                                 consumerKey:(NSString *)consumerKey
+                              consumerSecret:(NSString *)consumerSecret
+                                    username:(NSString *)username
+                                    password:(NSString *)password;
+
+- (void)postTokenRequest:(void(^)(NSURL *url, NSString *oauthToken))successBlock
+authenticateInsteadOfAuthorize:(BOOL)authenticateInsteadOfAuthorize
+              forceLogin:(NSNumber *)forceLogin // optional, default @(NO)
+              screenName:(NSString *)screenName // optional, default nil
+           oauthCallback:(NSString *)oauthCallback
+              errorBlock:(void(^)(NSError *error))errorBlock;
+
+- (void)signRequest:(STHTTPRequest *)r isMediaUpload:(BOOL)isMediaUpload oauthCallback:(NSString *)oauthCallback;
+
+// convenience
 - (void)postTokenRequest:(void(^)(NSURL *url, NSString *oauthToken))successBlock
            oauthCallback:(NSString *)oauthCallback
               errorBlock:(void(^)(NSError *error))errorBlock;
+
 
 - (void)postAccessTokenRequestWithPIN:(NSString *)pin
                          successBlock:(void(^)(NSString *oauthToken, NSString *oauthTokenSecret, NSString *userID, NSString *screenName))successBlock
@@ -51,20 +69,24 @@
                                    successBlock:(void(^)(NSString *oauthToken, NSString *oauthTokenSecret, NSString *userID, NSString *screenName))successBlock
                                      errorBlock:(void(^)(NSError *error))errorBlock;
 
-- (BOOL)canVerifyCredentials;
+// reverse auth phase 1
+- (void)postReverseOAuthTokenRequest:(void(^)(NSString *authenticationHeader))successBlock
+                          errorBlock:(void(^)(NSError *error))errorBlock;
 
-- (void)verifyCredentialsWithSuccessBlock:(void(^)(NSString *username))successBlock errorBlock:(void(^)(NSError *error))errorBlock;
+// useful for the so-called 'OAuth Echo' https://dev.twitter.com/twitter-kit/ios/oauth-echo
+
+- (NSDictionary *)OAuthEchoHeadersToVerifyCredentials;
 
 @end
 
 @interface NSString (STTwitterOAuth)
-+ (NSString *)random32Characters;
-- (NSString *)signHmacSHA1WithKey:(NSString *)key;
-- (NSDictionary *)parametersDictionary;
-- (NSString *)urlEncodedString;
++ (NSString *)st_random32Characters;
+- (NSString *)st_signHmacSHA1WithKey:(NSString *)key;
+- (NSDictionary *)st_parametersDictionary;
+- (NSString *)st_urlEncodedString;
 @end
 
 @interface NSURL (STTwitterOAuth)
-- (NSString *)normalizedForOauthSignatureString;
-- (NSArray *)getParametersDictionaries;
+- (NSString *)st_normalizedForOauthSignatureString;
+- (NSArray *)st_rawGetParametersDictionaries;
 @end

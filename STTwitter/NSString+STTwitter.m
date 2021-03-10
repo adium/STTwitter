@@ -8,9 +8,15 @@
 
 #import "NSString+STTwitter.h"
 
+NSUInteger kSTTwitterDefaultShortURLLength = 22;
+NSUInteger kSTTwitterDefaultShortURLLengthHTTPS = 23;
+
+NSString *kSTPOSTDataKey = @"kSTPOSTDataKey";
+NSString *kSTPOSTMediaFileNameKey = @"kSTPOSTMediaFileNameKey";
+
 @implementation NSString (STTwitter)
 
-- (NSString *)firstMatchWithRegex:(NSString *)regex error:(NSError **)e {
+- (NSString *)st_firstMatchWithRegex:(NSString *)regex error:(NSError **)e {
     NSError *error = nil;
     NSRegularExpression *re = [NSRegularExpression regularExpressionWithPattern:regex options:0 error:&error];
     
@@ -30,6 +36,43 @@
     NSTextCheckingResult *match = [matches lastObject];
     NSRange matchRange = [match rangeAtIndex:1];
     return [self substringWithRange:matchRange];
+}
+
+// use values from GET help/configuration
+- (NSInteger)st_numberOfCharactersInATweetWithShortURLLength:(NSUInteger)shortURLLength shortURLLengthHTTPS:(NSUInteger)shortURLLengthHTTPS {
+    
+    // NFC normalized string https://dev.twitter.com/docs/counting-characters
+    NSString *s = [self precomposedStringWithCanonicalMapping];
+    
+    __block NSInteger count = 0;
+    [s enumerateSubstringsInRange:NSMakeRange(0, s.length) options:NSStringEnumerationByComposedCharacterSequences usingBlock:^(NSString *subString, NSRange subStringRange, NSRange enclosingRange, BOOL *stop) {
+        count++;
+    }];
+    
+    NSError *error = nil;
+    NSRegularExpression *regex = [NSRegularExpression regularExpressionWithPattern:@"(https?://[A-Za-z0-9_\\.\\-/#\?=&]+)"
+                                                                           options:0
+                                                                             error:&error];
+    
+    NSArray *matches = [regex matchesInString:s
+                                      options:0
+                                        range:NSMakeRange(0, [s length])];
+    
+    for (NSTextCheckingResult *match in matches) {
+        NSRange urlRange = [match rangeAtIndex:1];
+        NSString *urlString = [s substringWithRange:urlRange];
+        
+        count -= urlRange.length;
+        count += [urlString hasPrefix:@"https"] ? shortURLLengthHTTPS : shortURLLength;
+    }
+    
+    return count;
+}
+
+// use default values for URL shortening
+- (NSInteger)st_numberOfCharactersInATweet {
+    return [self st_numberOfCharactersInATweetWithShortURLLength:kSTTwitterDefaultShortURLLength
+                                             shortURLLengthHTTPS:kSTTwitterDefaultShortURLLengthHTTPS];
 }
 
 @end
